@@ -1,3 +1,4 @@
+#include <math.h>
 #include "mpc.h"
 
 #ifdef _WIN32
@@ -228,12 +229,19 @@ lval* builtin_op(lval* a, char* op) {
     if (strcmp(op, "/") == 0) {
       if (y->num == 0) {
         lval_del(x); lval_del(y);
-        x = lval_err("Division By Zero.");
+        x = lval_err("Division by zero.");
         break;
       }
       x->num /= y->num;
     }
-    
+    if (strcmp(op, "%") == 0) {
+        if (y->num == 0) {
+            lval_del(x); lval_del(y);
+            x = lval_err("Division by zero.");
+        }
+        x->num = fmod((fmod(x->num, y->num) + y->num), y->num);
+    }
+
     lval_del(y);
   }
   
@@ -247,7 +255,7 @@ lval* builtin(lval* a, char* func) {
   if (strcmp("tail", func) == 0) { return builtin_tail(a); }
   if (strcmp("join", func) == 0) { return builtin_join(a); }
   if (strcmp("eval", func) == 0) { return builtin_eval(a); }
-  if (strstr("+-/*", func)) { return builtin_op(a, func); }
+  if (strstr("+-/*%", func)) { return builtin_op(a, func); }
   lval_del(a);
   return lval_err("Unknown Function!");
 }
@@ -321,14 +329,14 @@ int main(int argc, char** argv) {
   mpc_parser_t* Lang   = mpc_new("lang");
   
   mpca_lang(MPCA_LANG_DEFAULT,
-    "                                                               \
-        number  : /-?[0-9]+[\\.[0-9]*]?/ ;                          \
-        symbol  : \"list\" | \"head\" | \"tail\" | \"eval\"         \
-                | \"join\" | '+' | '-' | '*' | '/' ;                \
-        sexpr   : '(' <expr>* ')' ;                                 \
-        qexpr   : '{' <expr>* '}' ;                                 \
-        expr    : <number> | <symbol> | <sexpr> | <qexpr> ;         \
-        lang    : /^/ <expr>* /$/ ;                                 \
+    "                                                                           \
+        number  : /-?[0-9]+[\\.[0-9]*]?/ ;                                      \
+        symbol  : \"list\" | \"head\" | \"tail\" | \"eval\" | \"join\"          \
+                | '+' | '-' | '*' | '/' |  '%' ;                               \
+        sexpr   : '(' <expr>* ')' ;                                             \
+        qexpr   : '{' <expr>* '}' ;                                             \
+        expr    : <number> | <symbol> | <sexpr> | <qexpr> ;                     \
+        lang    : /^/ <expr>* /$/ ;                                             \
     ",
     Number, Symbol, Sexpr, Qexpr, Expr, Lang);
   
