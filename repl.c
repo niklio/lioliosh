@@ -21,13 +21,13 @@ void add_history(char* unused) {}
 #endif
 
 /* Add QEXPR as possible lval type */
-enum { LVAL_ERR, LVAL_NUM, LVAL_SYM, LVAL_SEXPR, LVAL_QEXPR };
+enum { LVAL_ERR, LVAL_NUM, LVAL_OPER, LVAL_SEXPR, LVAL_QEXPR };
 
 typedef struct lval {
   int type;
   double num;
   char* err;
-  char* sym;
+  char* oper;
   int count;
   struct lval** cell;
 } lval;
@@ -47,11 +47,11 @@ lval* lval_err(char* m) {
   return v;
 }
 
-lval* lval_sym(char* s) {
+lval* lval_oper(char* s) {
   lval* v = malloc(sizeof(lval));
-  v->type = LVAL_SYM;
-  v->sym = malloc(strlen(s) + 1);
-  strcpy(v->sym, s);
+  v->type = LVAL_OPER;
+  v->oper = malloc(strlen(s) + 1);
+  strcpy(v->oper, s);
   return v;
 }
 
@@ -77,7 +77,7 @@ void lval_del(lval* v) {
   switch (v->type) {
     case LVAL_NUM: break;
     case LVAL_ERR: free(v->err); break;
-    case LVAL_SYM: free(v->sym); break;
+    case LVAL_OPER: free(v->oper); break;
     
     /* If Qexpr or Sexpr then delete all elements inside */
     case LVAL_QEXPR:
@@ -142,19 +142,18 @@ void lval_expr_print(lval* v, char open, char close) {
 
 void lval_print(lval* v) {
   switch (v->type) {
-    case LVAL_NUM:   printf("%f", v->num); break;
-    case LVAL_ERR:   printf("Error: %s", v->err); break;
-    case LVAL_SYM:   printf("%s", v->sym); break;
-    case LVAL_SEXPR: lval_expr_print(v, '(', ')'); break;
-    case LVAL_QEXPR: lval_expr_print(v, '{', '}'); break;
+    case LVAL_NUM:      printf("%g", v->num); break;
+    case LVAL_ERR:      printf("Error: %s", v->err); break;
+    case LVAL_OPER:     printf("%s", v->oper); break;
+    case LVAL_SEXPR:    lval_expr_print(v, '(', ')'); break;
+    case LVAL_QEXPR:    lval_expr_print(v, '{', '}'); break;
   }
 }
 
 void lval_println(lval* v) { lval_print(v); putchar('\n'); }
 
-#define LASSERT(args, cond, err) \
-  if (!(cond)) { lval_del(args); return lval_err(err); }
-  
+#define LASSERT(args, cond, err) if (!(cond)) { lval_del(args); return lval_err(err); }
+
 lval* lval_eval(lval* v);
 
 lval* builtin_list(lval* a) {
@@ -207,6 +206,30 @@ lval* builtin_join(lval* a) {
   return x;
 }
 
+lval* builtin_max(lval* a) {
+    LASSERT(a, a->cell[0]->type == LVAL_NUM, "Function 'max' passed incorrect type.");
+
+    int max = a->cell[0]->num;
+    for (int i = 1; i < a->count; i++) {
+        if (max < a->cell[i]->num) {
+            max = a->cell[i]->num;
+        }
+    }
+    return lval_num(max);
+}
+
+lval* builtin_min(lval* a) {
+    LASSERT(a, a->cell[0]->type == LVAL_NUM, "Function 'min' passed incorrect type.");
+
+    int min = a->cell[0]->num;
+    for (int i = 1; i < a->count; i++) {
+        if (min > a->cell[i]->num) {
+            min = a->cell[i]->num;
+        }
+    }
+    return lval_num(min);
+}
+
 lval* builtin_op(lval* a, char* op) {
   
   for (int i = 0; i < a->count; i++) {
@@ -241,6 +264,7 @@ lval* builtin_op(lval* a, char* op) {
         }
         x->num = fmod((fmod(x->num, y->num) + y->num), y->num);
     }
+    if (strcmp(op, "^") == 0) { x->num = powf(x->num, y->num); }
 
     lval_del(y);
   }
@@ -255,7 +279,9 @@ lval* builtin(lval* a, char* func) {
   if (strcmp("tail", func) == 0) { return builtin_tail(a); }
   if (strcmp("join", func) == 0) { return builtin_join(a); }
   if (strcmp("eval", func) == 0) { return builtin_eval(a); }
-  if (strstr("+-/*%", func)) { return builtin_op(a, func); }
+  if (strcmp("max", func) == 0) { return builtin_max(a); }
+  if (strcmp("min", func) == 0) { return builtin_min(a); }
+  if (strstr("+-/*%^", func)) { return builtin_op(a, func); }
   lval_del(a);
   return lval_err("Unknown Function!");
 }
@@ -275,13 +301,13 @@ lval* lval_eval_sexpr(lval* v) {
   if (v->count == 1) { return lval_take(v, 0); }
   
   lval* f = lval_pop(v, 0);
-  if (f->type != LVAL_SYM) {
+  if (f->type != LVAL_OPER) {
     lval_del(f); lval_del(v);
-    return lval_err("S-expression Does not start with symbol.");
+    return lval_err("S-expression Does not start with operator.");
   }
   
   /* Call builtin with operator */
-  lval* result = builtin(v, f->sym);
+  lval* result = builtin(v, f->oper);
   lval_del(f);
   return result;
 }
@@ -300,7 +326,7 @@ lval* lval_read_num(mpc_ast_t* t) {
 lval* lval_read(mpc_ast_t* t) {
   
   if (strstr(t->tag, "number")) { return lval_read_num(t); }
-  if (strstr(t->tag, "symbol")) { return lval_sym(t->contents); }
+  if (strstr(t->tag, "operator")) { return lval_oper(t->contents); }
   
   lval* x = NULL;
   if (strcmp(t->tag, ">") == 0) { x = lval_sexpr(); } 
@@ -321,24 +347,25 @@ lval* lval_read(mpc_ast_t* t) {
 
 int main(int argc, char** argv) {
   
-  mpc_parser_t* Number = mpc_new("number");
-  mpc_parser_t* Symbol = mpc_new("symbol");
-  mpc_parser_t* Sexpr  = mpc_new("sexpr");
-  mpc_parser_t* Qexpr  = mpc_new("qexpr");
-  mpc_parser_t* Expr   = mpc_new("expr");
-  mpc_parser_t* Lang   = mpc_new("lang");
+  mpc_parser_t* Number      = mpc_new("number");
+  mpc_parser_t* Operator    = mpc_new("operator");
+  mpc_parser_t* Sexpr       = mpc_new("sexpr");
+  mpc_parser_t* Qexpr       = mpc_new("qexpr");
+  mpc_parser_t* Expr        = mpc_new("expr");
+  mpc_parser_t* Lang        = mpc_new("lang");
   
   mpca_lang(MPCA_LANG_DEFAULT,
-    "                                                                           \
-        number  : /-?[0-9]+[\\.[0-9]*]?/ ;                                      \
-        symbol  : \"list\" | \"head\" | \"tail\" | \"eval\" | \"join\"          \
-                | '+' | '-' | '*' | '/' |  '%' ;                               \
-        sexpr   : '(' <expr>* ')' ;                                             \
-        qexpr   : '{' <expr>* '}' ;                                             \
-        expr    : <number> | <symbol> | <sexpr> | <qexpr> ;                     \
-        lang    : /^/ <expr>* /$/ ;                                             \
+    "                                                                               \
+        number      : /-?[0-9]+[\\.[0-9]*]?/ ;                                      \
+        operator    : \"list\" | \"head\" | \"tail\" | \"eval\" | \"join\"          \
+                    | \"min\" | \"max\"                                             \
+                    | '+' | '-' | '*' | '/' |  '%' | '^' ;                          \
+        sexpr       : '(' <expr>* ')' ;                                             \
+        qexpr       : '{' <expr>* '}' ;                                             \
+        expr        : <number> | <operator> | <sexpr> | <qexpr> ;                   \
+        lang        : /^/ <expr>* /$/ ;                                             \
     ",
-    Number, Symbol, Sexpr, Qexpr, Expr, Lang);
+    Number, Operator, Sexpr, Qexpr, Expr, Lang);
   
   puts("Lioliosh Version 0.0.1");
   puts("Press Ctrl+c to Exit\n");
@@ -363,7 +390,7 @@ int main(int argc, char** argv) {
     
   }
   
-  mpc_cleanup(6, Number, Symbol, Sexpr, Qexpr, Expr, Lang);
+  mpc_cleanup(6, Number, Operator, Sexpr, Qexpr, Expr, Lang);
   
   return 0;
 }
