@@ -40,7 +40,7 @@ typedef struct lenv lenv;
 
 /* Lisp Value */
 
-enum { LVAL_ERR, LVAL_NUM, LVAL_SYM, LVAL_STR, LVAL_FUNC, LVAL_SEXPR, LVAL_QEXPR };
+enum { LVAL_ERR, LVAL_NUM, LVAL_SYM, LVAL_STR, LVAL_FN, LVAL_SEXPR, LVAL_QEXPR };
 
 typedef lval*(*lbuiltin)(lenv*, lval*);
 
@@ -102,10 +102,10 @@ lval* lval_str(char* s) {
     return v;
 }
 
-lval* lval_builtin(lbuiltin func) {
+lval* lval_builtin(lbuiltin fn) {
     lval* v = malloc(sizeof(lval));
-    v->type = LVAL_FUNC;
-    v->builtin = func;
+    v->type = LVAL_FN;
+    v->builtin = fn;
     return v;
 }
 
@@ -113,7 +113,7 @@ lenv* lenv_new(void);
 
 lval* lval_lambda(lval* formals, lval* body) {
     lval* v = malloc(sizeof(lval));
-    v->type = LVAL_FUNC;
+    v->type = LVAL_FN;
 
     v->builtin = NULL;
 
@@ -146,7 +146,7 @@ void lval_del(lval* v) {
 
     switch (v->type) {
         case LVAL_NUM: break;
-        case LVAL_FUNC:
+        case LVAL_FN:
             if (!v->builtin) {
                 lenv_del(v->env);
                 lval_del(v->formals);
@@ -178,7 +178,7 @@ lval* lval_copy(lval* v) {
     switch (v->type) {
 
         /* Copy functions */
-        case LVAL_FUNC:
+        case LVAL_FN:
             if (v->builtin) {
                 x->builtin = v->builtin;
             } else {
@@ -279,7 +279,7 @@ void lval_print_expr(lval* v, char open, char close) {
 
 void lval_print(lval* v) {
     switch (v->type) {
-        case LVAL_FUNC:
+        case LVAL_FN:
             if (v->builtin) {
                 printf("<builtin>");
             } else {
@@ -316,7 +316,7 @@ int lval_eq(lval* x, lval* y) {
         case LVAL_STR: return (strcmp(x->str, y->str) == 0);
 
         /* If Builtin compare functions, otherwise formals and body */
-        case LVAL_FUNC:
+        case LVAL_FN:
             if (x->builtin || y->builtin) {
                 return x->builtin == y->builtin;
             } else {
@@ -340,7 +340,7 @@ int lval_eq(lval* x, lval* y) {
 
 char* ltype_name(int t) {
     switch(t) {
-        case LVAL_FUNC: return "Function";
+        case LVAL_FN: return "Function";
         case LVAL_NUM: return "Number";
         case LVAL_ERR: return "Error";
         case LVAL_SYM: return "Symbol";
@@ -435,19 +435,20 @@ void lenv_def(lenv* e, lval* k, lval* v) {
 #define LASSERT(args, cond, fmt, ...) \
   if (!(cond)) { lval* err = lval_err(fmt, ##__VA_ARGS__); lval_del(args); return err; }
 
-#define LASSERT_TYPE(func, args, index, expect) \
+#define LASSERT_TYPE(fn, args, index, expect) \
   LASSERT(args, args->cell[index]->type == expect, \
     "Function '%s' passed incorrect type for argument %i. Got %s, Expected %s.", \
-    func, index, ltype_name(args->cell[index]->type), ltype_name(expect))
+    fn, index, ltype_name(args->cell[index]->type), ltype_name(expect))
 
-#define LASSERT_NUM(func, args, num) \
+#define LASSERT_NUM(fn, args, num) \
   LASSERT(args, args->count == num, \
     "Function '%s' passed incorrect number of arguments. Got %i, Expected %i.", \
-    func, args->count, num)
+    fn, args->count, num)
 
-#define LASSERT_NOT_EMPTY(func, args, index) \
+#define LASSERT_NOT_EMPTY(fn, args, index) \
   LASSERT(args, args->cell[index]->count != 0, \
-    "Function '%s' passed {} for argument %i.", func, index);
+    "Function '%s' passed {} for argument %i.", \
+    fn, index);
 
 
 lval* lval_eval(lenv* e, lval* v);
@@ -631,14 +632,14 @@ lval* builtin_div(lenv* e, lval* a) { return builtin_op(e, a, "/"); }
 lval* builtin_mod(lenv* e, lval* a) { return builtin_op(e, a, "%"); }
 lval* builtin_exp(lenv* e, lval* a) { return builtin_op(e, a, "^"); }
 
-lval* builtin_var(lenv* e, lval* a, char* func) {
-    LASSERT_TYPE(func, a, 0, LVAL_QEXPR);
+lval* builtin_var(lenv* e, lval* a, char* fn) {
+    LASSERT_TYPE(fn, a, 0, LVAL_QEXPR);
 
     lval* syms = a->cell[0];
     for (int i = 0; i < syms->count; i++) {
         LASSERT(a, (syms->cell[i]->type == LVAL_SYM),
             "Function %s cannot define non-symbol. "
-            "Got %s, Expected %s.", func,
+            "Got %s, Expected %s.", fn,
             ltype_name(syms->cell[i]->type),
             ltype_name(LVAL_SYM)
         );
@@ -652,11 +653,11 @@ lval* builtin_var(lenv* e, lval* a, char* func) {
     ;
 
     for (int i = 0; i < syms->count; i++) {
-        if (strcmp(func, "def") == 0) {
+        if (strcmp(fn, "def") == 0) {
             lenv_def(e, syms->cell[i], a->cell[i+1]);
         }
 
-        if (strcmp(func, "=") == 0) {
+        if (strcmp(fn, "=") == 0) {
             lenv_put(e, syms->cell[i], a->cell[i+1]);
         }
 
@@ -743,6 +744,8 @@ lval* builtin_load(lenv* e, lval* a) {
 
     mpc_result_t r;
     if (mpc_parse_contents(a->cell[0]->str, Lang, &r)) {
+
+        /* Read file contents */
         lval* expr = lval_read(r.output);
         mpc_ast_delete(r.output);
 
@@ -791,9 +794,9 @@ lval* builtin_error(lenv* e, lval* a) {
     return err;
 }
 
-void lenv_add_builtin(lenv* e, char* name, lbuiltin func) {
+void lenv_add_builtin(lenv* e, char* name, lbuiltin fn) {
     lval* k = lval_sym(name);
-    lval* v = lval_builtin(func);
+    lval* v = lval_builtin(fn);
     lenv_put(e, k, v);
     lval_del(k); lval_del(v);
 }
@@ -926,12 +929,12 @@ lval* lval_eval_sexpr(lenv* e, lval* v) {
     if (v->count == 1) { return lval_eval(e, lval_take(v, 0)); }
   
     lval* f = lval_pop(v, 0);
-    if (f->type != LVAL_FUNC) {
+    if (f->type != LVAL_FN) {
         lval* err = lval_err(
             "S-Expression starts with incorrect type. "
             "Got %s, Expected %s.",
             ltype_name(f->type),
-            ltype_name(LVAL_FUNC)
+            ltype_name(LVAL_FN)
         );
         lval_del(f);
         lval_del(v);
@@ -1016,8 +1019,8 @@ int main(int argc, char** argv) {
             comment     : /;[^\\r\\n]*/ ;                                               \
             sexpr       : '(' <expr>* ')' ;                                             \
             qexpr       : '{' <expr>* '}' ;                                             \
-            expr        : <number> | <symbol> | <string>                                \
-                        | <sexpr>  | <qexpr>;                                           \
+            expr        : <number>  | <symbol> | <string>                               \
+                        | <comment> | <sexpr>  | <qexpr> ;                              \
             lang        : /^/ <expr>* /$/ ;                                             \
         ",
         Number, Symbol, String, Comment, Sexpr, Qexpr, Expr, Lang);
@@ -1033,6 +1036,9 @@ int main(int argc, char** argv) {
         puts("Lioliosh Version 0.0.1");
         puts("Press Ctrl+c to Exit\n");
 
+        // Load Standard library
+        builtin_load(e, lval_add(lval_sexpr(), lval_str("prelude.lio")));
+
         while (1) {
       
             char* input = readline(">>> ");
@@ -1046,7 +1052,7 @@ int main(int argc, char** argv) {
                 lval_del(x);
 
                 mpc_ast_delete(r.output);
-            } else {    
+            } else {
                 mpc_err_print(r.error);
                 mpc_err_delete(r.error);
             }
@@ -1060,7 +1066,7 @@ int main(int argc, char** argv) {
 
     if (argc >= 2) {
 
-        for (int i = 0; i < argc; i++) {
+        for (int i = 1; i < argc; i++) {
             lval* args = lval_add(lval_sexpr(), lval_str(argv[i]));
             lval* x = builtin_load(e, args);
             if (x->type == LVAL_ERR) { lval_println(x); }

@@ -1,0 +1,10 @@
+; Atoms
+(def {nil} {})
+(def {true} 1)
+(def {false} 0)
+
+; Function declaration
+(def {fn} (\ {f b} {
+    def (head f) (\ (tail f) b)
+}))
+
