@@ -499,16 +499,6 @@ lval* builtin_tail(lenv* e, lval* a) {
     return v;
 }
 
-lval* builtin_init(lenv* e, lval* a) {
-    LASSERT_NUM("init", a, 1);
-    LASSERT_TYPE("init", a, 0, LVAL_QEXPR);
-    LASSERT_NOT_EMPTY("init", a, 0);
-
-    lval* v = lval_take(a, 0);
-    lval_del(lval_pop(v, v->count - 1));
-    return v;
-}
-
 lval* builtin_eval(lenv* e, lval* a) {
     LASSERT_NUM("eval", a, 1);
     LASSERT_TYPE("eval", a, 0, LVAL_QEXPR);
@@ -516,13 +506,6 @@ lval* builtin_eval(lenv* e, lval* a) {
     lval* x = lval_take(a, 0);
     x->type = LVAL_SEXPR;
     return lval_eval(e, x);
-}
-
-lval* builtin_len(lenv* e, lval* a) {
-    LASSERT_NUM("len", a, 1)
-    LASSERT_TYPE("len", a, 0, LVAL_QEXPR);
-
-    return lval_num(lval_take(a, 0)->count);
 }
 
 lval* builtin_max(lenv* e, lval* a) {
@@ -811,13 +794,11 @@ void lenv_add_builtins(lenv* e) {
     lenv_add_builtin(e, "list", builtin_list);
     lenv_add_builtin(e, "head", builtin_head);
     lenv_add_builtin(e, "tail", builtin_tail);
-    lenv_add_builtin(e, "init", builtin_init);
     lenv_add_builtin(e, "eval", builtin_eval);
     lenv_add_builtin(e, "join", builtin_join);
     lenv_add_builtin(e, "cons", builtin_cons);
     lenv_add_builtin(e, "min", builtin_min);
     lenv_add_builtin(e, "max", builtin_max);
-    lenv_add_builtin(e, "len", builtin_len);
 
     /* Math functions */
     lenv_add_builtin(e, "+", builtin_add);
@@ -853,11 +834,8 @@ lval* lval_call(lenv* e, lval* f, lval* a) {
 
         if (f->formals->count == 0) {
             lval_del(a);
-            return lval_err(
-                "Function passed too many arguments. Got %i, Expected %i.",
-                given,
-                total
-            );
+            return lval_err("Function passed too many arguments. Got %i, Expected %i.",
+            given, total);
         }
 
         lval* sym = lval_pop(f->formals, 0);
@@ -869,8 +847,7 @@ lval* lval_call(lenv* e, lval* f, lval* a) {
             if (f->formals->count != 1) {
                 lval_del(a);
                 return lval_err("Function format invalid."
-                    "Symbol ':' not followed by a single symbol."
-                );
+                    "Symbol ':' not followed by a single symbol.");
             }
 
             lval* nsym = lval_pop(f->formals, 0);
@@ -891,8 +868,7 @@ lval* lval_call(lenv* e, lval* f, lval* a) {
     if (f->formals->count > 0 && strcmp(f->formals->cell[0]->sym, ":") == 0) {
         if (f->formals->count != 2) {
             return lval_err("Function format invalid."
-                "Symbol ':' not followed by single symbol."
-            );
+                "Symbol ':' not followed by single symbol.");
         }
 
         lval_del(lval_pop(f->formals, 0));
@@ -1029,15 +1005,14 @@ int main(int argc, char** argv) {
     lenv_add_builtins(e);
 
 
-    /* REPL*/
+    // Load Standard library
+    builtin_load(e, lval_add(lval_sexpr(), lval_str("prelude.lio")));
 
+    /* REPL*/
     if (argc == 1) {
 
         puts("Lioliosh Version 0.0.1");
         puts("Press Ctrl+c to Exit\n");
-
-        // Load Standard library
-        builtin_load(e, lval_add(lval_sexpr(), lval_str("prelude.lio")));
 
         while (1) {
       

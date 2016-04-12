@@ -1,0 +1,9 @@
+(fn {rule x} {
+    if (== x "b")
+        {{"f" "[" "-" "b" "]" "+" "b"}}
+        {{x}}
+})
+
+(fn {substitute x : xs} {
+    join (rule x) (if (!= xs nil) {curry substitute xs} {nil})
+})
