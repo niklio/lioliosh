@@ -439,7 +439,7 @@ void lenv_def(lenv* e, lval* k, lval* v) {
 
 #define LASSERT_NOT_EMPTY(fn, args, index) \
   LASSERT(args, args->cell[index]->count != 0, \
-    "Function '%s' passed {} for argument %i.", \
+    "Function '%s' passed nil for argument %i.", \
     fn, index);
 
 
