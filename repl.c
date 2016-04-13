@@ -248,14 +248,6 @@ lval* lval_take(lval* v, int i) {
     return x;
 }
 
-lval* lval_insert(lval* v, lval* x, int i) {
-    v->count++;
-    v->cell = realloc(v->cell, sizeof(lval*) * v->count);
-    memmove(&v->cell[i+1], &v->cell[i], sizeof(lval*) * (v->count-i));
-    v->cell[i] = x;
-    return v;
-}
-
 void lval_print(lval* v);
 
 void lval_print_str(lval* v) {
@@ -266,15 +258,15 @@ void lval_print_str(lval* v) {
     free(escaped);
 }
 
-void lval_print_expr(lval* v, char open, char close) {
-    putchar(open);
+void lval_print_expr(lval* v, char* open, char* close) {
+    printf("%s", open);
     for (int i = 0; i < v->count; i++) {
         lval_print(v->cell[i]);    
         if (i != (v->count-1)) {
             putchar(' ');
         }
     }
-    putchar(close);
+    printf("%s", close);
 }
 
 void lval_print(lval* v) {
@@ -293,8 +285,8 @@ void lval_print(lval* v) {
         case LVAL_ERR: printf("Error: %s", v->err); break;
         case LVAL_SYM: printf("%s", v->sym); break;
         case LVAL_STR: lval_print_str(v); break;
-        case LVAL_SEXPR: lval_print_expr(v, '(', ')'); break;
-        case LVAL_QEXPR: lval_print_expr(v, '{', '}'); break;
+        case LVAL_SEXPR: lval_print_expr(v, "(", ")"); break;
+        case LVAL_QEXPR: lval_print_expr(v, "\'(", ")"); break;
     }
 }
 
@@ -538,14 +530,6 @@ lval* builtin_min(lenv* e, lval* a) {
         }
     }
     return lval_num(min);
-}
-
-lval* builtin_cons(lenv* e, lval* a) {
-    LASSERT_NUM("cons", a, 2);
-    LASSERT_TYPE("cons", a, 0, LVAL_NUM);
-    LASSERT_TYPE("cons", a, 1, LVAL_QEXPR);
-
-    return lval_insert(a->cell[1], a->cell[0], 0);
 }
 
 lval* builtin_join(lenv* e, lval* a) {
@@ -796,7 +780,6 @@ void lenv_add_builtins(lenv* e) {
     lenv_add_builtin(e, "tail", builtin_tail);
     lenv_add_builtin(e, "eval", builtin_eval);
     lenv_add_builtin(e, "join", builtin_join);
-    lenv_add_builtin(e, "cons", builtin_cons);
     lenv_add_builtin(e, "min", builtin_min);
     lenv_add_builtin(e, "max", builtin_max);
 
@@ -993,8 +976,8 @@ int main(int argc, char** argv) {
             symbol      : /[a-zA-Z0-9_+\\^%%\\-*\\/\\\\=<>!&:]+/ ;                      \
             string      : /\"(\\\\.|[^\"])*\"/ ;                                        \
             comment     : /;[^\\r\\n]*/ ;                                               \
-            sexpr       : '(' <expr>* ')' ;                                             \
-            qexpr       : '{' <expr>* '}' ;                                             \
+            sexpr       : /\\(/ <expr>* ')' ;                                           \
+            qexpr       : /'\\(/ <expr>* ')' ;                                          \
             expr        : <number>  | <symbol> | <string>                               \
                         | <comment> | <sexpr>  | <qexpr> ;                              \
             lang        : /^/ <expr>* /$/ ;                                             \
@@ -1006,7 +989,7 @@ int main(int argc, char** argv) {
 
 
     // Load Standard library
-    builtin_load(e, lval_add(lval_sexpr(), lval_str("prelude.lio")));
+    builtin_load(e, lval_add(lval_sexpr(), lval_str("lib/prelude.lio")));
 
     /* REPL*/
     if (argc == 1) {
