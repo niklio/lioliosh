@@ -6,8 +6,7 @@
 
 ; Function declaration
 (def '(fn) (\ '(f b) '(
-    def (head f) (\ (tail f) b)
-)))
+    def (head f) (\ (tail f) b) )))
 
 ; Currying
 (fn '(curry f l) '(eval (join (list f) l)))
@@ -54,6 +53,11 @@
             '(true)
             '(elem x (tail l)))))
 
+; shortcuts
+(fn '(fst l) '(eval (head l)) )
+(fn '(snd l) '(eval (head (tail l))) )
+(fn '(trd l) '(eval (head (tail (tail l)))))
+
 ; Function application
 (fn '(map f l) 
     '(if (== l nil)
@@ -97,3 +101,26 @@
         '(if (== xs nil)
             '(false)
             '(curry any xs))))
+
+; Misc functions
+(fn '(flip f a b) '(f b a))
+(fn '(comp f g x) '(f (g x)))
+
+
+; Conditionals
+(def '(otherwise) true)
+
+(fn '(select : xs)
+    '(if (== xs nil)
+        '(error "No Selection Found")
+        '(if (fst (fst xs))
+            '(snd (fst xs))
+            '(curry select (tail xs)))))
+
+(fn '(case x : xs)
+    '(if (== xs nil)
+        '(error "No Case Found")
+        '(if (== x (fst (fst xs)))
+            '(snd (fst xs))
+            '(curry case (cons x (tail xs))))))
+
