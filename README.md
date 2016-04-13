@@ -49,7 +49,7 @@ To call a function
 #### Math Functions
 The supported math functions are:
 ```
-+ - * / % ^ 
++ - * / % ^
 ```
 They each take one or more arguments.
 #### Comparison Functions
@@ -119,10 +119,10 @@ Len takes a quoted expression and returns its length.
 >>> len '(1 2 3 4)
 4
 ```
-###### Init
-Init takes a quoted expression and returns everything but the last element.
+###### Pop
+Pop takes a quoted expression and returns everything but the last element.
 ```
->>> init '(1 2 3 4)
+>>> pop '(1 2 3 4)
 '(1 2 3)
 ```
 ###### Last
@@ -132,7 +132,7 @@ Last takes a quoted expression and returns the last element.
 4
 ```
 ###### Nth
-Nth takes a quoted expression and a number and returns the nth element. 
+Nth takes a quoted expression and a number and returns the nth element.
 ```
 >>> nth 2 '(1 2 3 4)
 3
