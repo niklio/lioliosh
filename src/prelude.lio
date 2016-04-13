@@ -102,6 +102,10 @@
             '(false)
             '(curry any xs))))
 
+; Misc functions
+(fn '(flip f a b) '(f b a))
+(fn '(comp f g x) '(f (g x)))
+
 
 ; Conditionals
 (def '(otherwise) true)
@@ -109,7 +113,9 @@
 (fn '(select : xs)
     '(if (== xs nil)
         '(error "No Selection Found")
-        '(if (fst (fst xs)) '(snd (fst xs)) '(curry select (tail xs)))))
+        '(if (fst (fst xs))
+            '(snd (fst xs))
+            '(curry select (tail xs)))))
 
 (fn '(case x : xs)
     '(if (== xs nil)

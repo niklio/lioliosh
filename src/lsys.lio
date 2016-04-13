@@ -1,0 +1,6 @@
+(fn '(subs old new seq)
+    '(select
+        '((== (len seq) 0)      nil)
+        '((== (len seq) 1)      (if (== (fst seq) old) '(list new) '(seq)))
+        '(otherwise             (join (subs old new (head seq))
+                                     (subs old new (tail seq))))))

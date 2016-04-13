@@ -989,7 +989,7 @@ int main(int argc, char** argv) {
 
 
     // Load Standard library
-    builtin_load(e, lval_add(lval_sexpr(), lval_str("lib/prelude.lio")));
+    builtin_load(e, lval_add(lval_sexpr(), lval_str("prelude.lio")));
 
     /* REPL*/
     if (argc == 1) {
