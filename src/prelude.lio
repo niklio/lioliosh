@@ -13,17 +13,17 @@
 (fn '(uncurry f : xs) '(f xs))
 
 ; List functions
-(fn '(cons x l) 
+(fn '(cons x l)
     '(join (list x) l))
 
-(fn '(len l) 
+(fn '(len l)
     '(if (== l nil)
         '(0)
         '((+ (len (tail l)) 1))))
 
-(fn '(init l)
+(fn '(pop l)
     '(if (> (len l) 1)
-        '(join (head l) (init (tail l)))
+        '(join (head l) (pop (tail l)))
         '(nil)))
 
 (fn '(last l)
@@ -46,7 +46,7 @@
         '(join (head l) (take (- n 1) (tail l)))
         '(nil)))
 
-(fn '(elem x l) 
+(fn '(elem x l)
     '(if (== l nil)
         '(false)
         '(if (== (list x) (head l))
@@ -59,7 +59,7 @@
 (fn '(trd l) '(eval (head (tail (tail l)))))
 
 ; Function application
-(fn '(map f l) 
+(fn '(map f l)
     '(if (== l nil)
         '(nil)
         '(cons (curry f (head l)) (map f (tail l)))))
@@ -74,30 +74,30 @@
             (filter f (tail l)))))
 
 ; Sequential evaluation
-(fn '(do : l) 
+(fn '(do : l)
     '(if (== l nil)
         '(nil)
         '(last l)))
 
 ; Open new scope
-(fn '(let b) 
+(fn '(let b)
     '(((\ '(_) b) ())))
 
 ; Logical operations
-(fn '(not x) 
+(fn '(not x)
     '(if (x) '(false) '(true)
 ))
 
-(fn '(all x : xs) 
+(fn '(all x : xs)
     '(if (x)
         '(if (== xs nil)
             '(true)
-            '(curry all xs)) 
+            '(curry all xs))
     '(false)))
 
-(fn '(any x : xs) 
+(fn '(any x : xs)
     '(if (x)
-        '(true) 
+        '(true)
         '(if (== xs nil)
             '(false)
             '(curry any xs))))
